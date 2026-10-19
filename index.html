@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BB今餐想食咩好！</title>
+  <style>
+    :root {
+      --pink:#e85d75; --pink-dark:#c9445d; --ink:#342b31;
+      --muted:#82777d; --paper:#fffaf7; --line:#f0e2e3;
+    }
+    * { box-sizing:border-box }
+    body {
+      margin:0; color:var(--ink);
+      background:radial-gradient(ellipse at top left,#ffe6e9 0,transparent 34rem),var(--paper);
+      font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;
+    }
+    button,input,select,textarea { font:inherit }
+    button { cursor:pointer }
+    .wrap { width:min(1120px,94%); margin:auto; padding:30px 0 60px }
+    header { text-align:center; padding:18px 12px 28px }
+    header .heart { font-size:34px }
+    h1 { margin:6px 0; font-size:clamp(26px,5vw,42px) }
+    header p { margin:8px 0 0; color:var(--muted) }
+    .panel {
+      background:rgba(255,255,255,.94); border:1px solid var(--line);
+      border-radius:20px; padding:20px; margin-bottom:18px;
+      box-shadow:0 8px 28px #57313b0b;
+    }
+    .panel h2 { margin:0 0 14px; font-size:19px }
+    .filters,.form-grid {
+      display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px
+    }
+    label { display:block; font-size:13px; color:var(--muted) }
+    label input,label select,label textarea { margin-top:6px; width:100% }
+    input,select,textarea {
+      border:1px solid var(--line); background:white; color:var(--ink);
+      border-radius:11px; padding:10px 12px; outline-color:#f2a6b2;
+    }
+    textarea { min-height:76px; resize:vertical }
+    .wide { grid-column:1/-1 } .span2 { grid-column:span 2 }
+    .actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px }
+    .btn {
+      border:0; border-radius:11px; padding:10px 15px; background:var(--pink);
+      color:white; font-weight:700; text-decoration:none; display:inline-block;
+    }
+    .btn:hover { background:var(--pink-dark) }
+    .btn.secondary { background:#f6e8eb; color:var(--pink-dark) }
+    .btn.small { padding:7px 10px; font-size:13px }
+    .btn:disabled { opacity:.6; cursor:wait }
+    .topline {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; flex-wrap:wrap; margin-bottom:12px
+    }
+    .count { color:var(--muted); font-size:14px }
+    .results { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px }
+    .card { border:1px solid var(--line); background:#fff; overflow:hidden; border-radius:16px }
+    .photo {
+      height:180px; background:linear-gradient(135deg,#ffe4e7,#fff0db);
+      display:grid; place-items:center; color:#b97a85; overflow:hidden; text-align:center;
+    }
+    .photo img { width:100%; height:100%; object-fit:cover }
+    .card-body { padding:14px }
+    .card h3 { margin:0 0 7px; font-size:18px }
+    .meta { color:var(--muted); font-size:13px; line-height:1.7; overflow-wrap:anywhere }
+    .tags { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 }
+    .tag { background:#fff0f2; color:#a74659; border-radius:999px; padding:4px 9px; font-size:12px }
+    .card-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px }
+    .empty { text-align:center; padding:35px 12px; color:var(--muted) }
+    .random-box { display:none; background:#fff1f3; border-radius:14px; padding:13px 16px; margin-top:12px }
+    .random-box.show { display:block }
+    .hint,.footer-note { color:var(--muted); font-size:12px; line-height:1.6; margin-top:7px }
+    #app[hidden],#loginPanel[hidden] { display:none }
+    .status { color:var(--muted); font-size:13px }
+    @media(max-width:800px) {
+      .results { grid-template-columns:repeat(2,minmax(0,1fr)) }
+      .filters,.form-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
+    }
+    @media(max-width:540px) {
+      .results,.filters,.form-grid { grid-template-columns:1fr }
+      .span2 { grid-column:auto }
+      .panel { padding:15px }
+    }
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="heart">💗</div>
+    <h1>BB今餐想食咩好！</h1>
+    <p>專屬女朋友嘅餐廳選擇系統・今日都要食得開心</p>
+  </header>
+
+  <section class="panel" id="loginPanel">
+    <h2>🔐 登入以同步餐廳資料</h2>
+    <form id="authForm">
+      <div class="form-grid">
+        <label>Email
+          <input id="authEmail" type="email" autocomplete="email" required>
+        </label>
+        <label>密碼
+          <input id="authPassword" type="password" minlength="6"
+                 autocomplete="current-password" required>
+        </label>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">登入</button>
+        <button class="btn secondary" type="button" id="signupBtn">建立帳戶</button>
+        <button class="btn secondary" type="button" id="resetPasswordBtn">重設密碼</button>
+      </div>
+      <p class="hint">第一次使用請先建立帳戶。不同帳戶的餐廳清單互相分開。</p>
+      <p id="authMessage" class="status"></p>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <section class="panel">
+      <div class="topline">
+        <h2>🔎 幫 BB 搵餐廳</h2>
+        <div class="actions" style="margin:0">
+          <span id="userLabel" class="status"></span>
+          <button class="btn secondary small" id="logoutBtn" type="button">登出</button>
+          <button class="btn" id="pickBtn" type="button">🎲 我幫你揀！</button>
+        </div>
+      </div>
+      <div class="filters">
+        <label>地區<select id="filterArea"></select></label>
+        <label>菜系<select id="filterCategory"></select></label>
+        <label>人均預算
+          <select id="filterBudget">
+            <option value="">不限預算</option>
+            <option value="1-50">HK$1–50</option>
+            <option value="51-100">HK$51–100</option>
+            <option value="101-150">HK$101–150</option>
+            <option value="151-200">HK$151–200</option>
+            <option value="201-250">HK$201–250</option>
+            <option value="251-300">HK$251–300</option>
+            <option value="301-400">HK$301–400</option>
+            <option value="401-500">HK$401–500</option>
+            <option value="501+">HK$501以上</option>
+          </select>
+        </label>
+        <label>搜尋餐廳<input id="filterText" type="search" placeholder="餐廳名稱或備註"></label>
+      </div>
+      <div id="randomBox" class="random-box"></div>
+    </section>
+
+    <section class="panel">
+      <h2 id="formTitle">➕ 加入餐廳</h2>
+      <form id="restaurantForm">
+        <input id="editId" type="hidden">
+        <div class="form-grid">
+          <label>餐廳名稱 *
+            <input id="name" required maxlength="80" placeholder="例如：BB最愛茶餐廳">
+          </label>
+          <label>地區 *<select id="area" required></select></label>
+          <label>人均消費 *
+            <select id="price" required>
+              <option value="">選擇人均消費</option>
+              <option value="50">HK$1–50</option>
+              <option value="100">HK$51–100</option>
+              <option value="150">HK$101–150</option>
+              <option value="200">HK$151–200</option>
+              <option value="250">HK$201–250</option>
+              <option value="300">HK$251–300</option>
+              <option value="400">HK$301–400</option>
+              <option value="500">HK$401–500</option>
+              <option value="501+">HK$501以上</option>
+            </select>
+          </label>
+          <label>菜系／食物種類<select id="category"></select></label>
+          <label class="span2">餐廳資料連結
+            <input id="url" type="url" placeholder="https://...">
+          </label>
+          <label class="span2">餐牌／相片連結
+            <input id="photoUrl" type="url" placeholder="可貼上圖片檔案直連網址">
+          </label>
+          <label class="wide">備註
+            <textarea id="notes" placeholder="例如：必食菜式、營業時間、BB想去程度……"></textarea>
+          </label>
+        </div>
+        <p class="hint">餐廳資料即時同步到已登入的裝置。請使用「餐牌／相片連結」欄位貼上圖片網址；外部網站可能限制圖片顯示。</p>
+        <div class="actions">
+          <button class="btn" type="submit" id="saveBtn">儲存餐廳</button>
+          <button class="btn secondary" type="button" id="searchBtn">🔍 搜尋餐廳資料</button>
+          <button class="btn secondary" type="button" id="cancelEdit" hidden>取消編輯</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="topline">
+        <h2>🍽️ 餐廳清單</h2>
+        <div class="actions" style="margin:0">
+          <button class="btn secondary small" id="exportBtn" type="button">匯出備份</button>
+          <button class="btn secondary small" id="importBtn" type="button">匯入備份</button>
+          <input id="importFile" type="file" accept="application/json,.json" hidden>
+        </div>
+      </div>
+      <div class="topline">
+        <span id="count" class="count"></span>
+        <span id="syncStatus" class="status">等待登入</span>
+      </div>
+      <div id="results" class="results"></div>
+    </section>
+    <p class="footer-note">資料會同步至你的 Firebase 專案。建議仍定期匯出 JSON 備份。</p>
+  </div>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    sendPasswordResetEmail, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, setDoc, deleteDoc, getDocs,
+    onSnapshot, writeBatch
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDHLw7dJPmEyiS945CjojaN6JlY8dl5Sy4",
+    authDomain: "eat-what-today-a434a.firebaseapp.com",
+    projectId: "eat-what-today-a434a",
+    storageBucket: "eat-what-today-a434a.firebasestorage.app",
+    messagingSenderId: "325805110765",
+    appId: "1:325805110765:web:65667b636db8bfa32e63e4"
+  };
+
+  const AREAS = [
+    "香港島・中西區","香港島・灣仔","香港島・東區","香港島・南區",
+    "九龍・油尖旺","九龍・深水埗","九龍・九龍城","九龍・黃大仙","九龍・觀塘",
+    "新界・荃灣","新界・屯門","新界・元朗","新界・北區","新界・大埔",
+    "新界・沙田","新界・西貢","新界・葵青",
+    "澳門・新馬路／議事亭前地","澳門・南灣／西灣","澳門・新口岸／宋玉生廣場",
+    "澳門・皇朝區","澳門・黑沙環","澳門・祐漢","澳門・筷子基","澳門・青洲",
+    "澳門・林茂塘","澳門・沙梨頭","澳門・十月初五街","澳門・水坑尾",
+    "澳門・荷蘭園","澳門・盧九","澳門・高士德","澳門・雅廉訪","澳門・塔石",
+    "澳門・望德堂","澳門・媽閣","澳門・下環","澳門・氹仔市區","澳門・氹仔舊城區",
+    "澳門・氹仔花城","澳門・氹仔北安","澳門・路氹城","澳門・路環市區",
+    "澳門・黑沙海灘","澳門・其他",
+    "珠海・香洲區","珠海・斗門區","珠海・金灣區","珠海・橫琴"
+  ];
+
+  const CATEGORIES = [
+    "港式茶餐廳","中菜粵菜","點心","燒臘","米線/粉麵","澳門葡國菜",
+    "泰國菜","越南菜","緬甸菜","東南亞雜菜","日式料理","壽司刺身","拉麵",
+    "韓國菜","意大利菜","西餐扒房","墨西哥菜","火鍋","燒烤/串燒","海鮮",
+    "台灣小食","漢堡美式快餐","咖啡輕食","麵包烘焙","甜品糖水","素食"
+  ];
+
+  const ALL_HK = "__ALL_HONG_KONG__";
+  const ALL_MACAU = "__ALL_MACAU__";
+  const ALL_ZHUHAI = "__ALL_ZHUHAI__";
+  const STORAGE_KEY = "bb-restaurant-picker-v2";
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const auth = getAuth(firebaseApp);
+  const db = getFirestore(firebaseApp);
+
+  const $ = id => document.getElementById(id);
+  let restaurants = [];
+  let currentUser = null;
+  let unsubscribeRestaurants = null;
+  let migrationChecked = false;
+
+  const restaurantCollection = () =>
+    collection(db, "users", currentUser.uid, "restaurants");
+
+  function addOption(select, value, label) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.append(option);
+  }
+
+  function fillAreaSelect(select, isFilter) {
+    select.replaceChildren();
+    addOption(select, "", isFilter ? "全部地區" : "選擇地區");
+    if (isFilter) {
+      addOption(select, ALL_HK, "香港全部地區");
+      addOption(select, ALL_MACAU, "澳門全部地區");
+      addOption(select, ALL_ZHUHAI, "珠海全部地區");
+    }
+    AREAS.forEach(area => addOption(select, area, area));
+  }
+
+  function fillCategorySelect(select, label) {
+    select.replaceChildren();
+    addOption(select, "", label);
+    CATEGORIES.forEach(category => addOption(select, category, category));
+  }
+
+  fillAreaSelect($("area"), false);
+  fillAreaSelect($("filterArea"), true);
+  fillCategorySelect($("category"), "選擇食物種類");
+  fillCategorySelect($("filterCategory"), "全部種類");
+
+  function escapeHTML(value = "") {
+    return String(value).replace(/[&<>"']/g, char => ({
+      "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+    })[char]);
+  }
+
+  function safeUrl(value) {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function normalizeArea(area) {
+    if (AREAS.includes(area)) return area;
+    const value = String(area || "");
+    if (value.startsWith("澳門")) return "澳門・其他";
+    if (value.startsWith("珠海")) return "珠海・香洲區";
+    return value;
+  }
+
+  function getPriceBand(price) {
+    if (price === "" || price == null) return null;
+    if (String(price) === "501+") {
+      return {min:501, max:Infinity, label:"HK$501以上"};
+    }
+    const number = Number(price);
+    if (!Number.isFinite(number)) return null;
+    if (number <= 50) return {min:1, max:50, label:"HK$1–50"};
+    if (number <= 100) return {min:51, max:100, label:"HK$51–100"};
+    if (number <= 150) return {min:101, max:150, label:"HK$101–150"};
+    if (number <= 200) return {min:151, max:200, label:"HK$151–200"};
+    if (number <= 250) return {min:201, max:250, label:"HK$201–250"};
+    if (number <= 300) return {min:251, max:300, label:"HK$251–300"};
+    if (number <= 400) return {min:301, max:400, label:"HK$301–400"};
+    if (number <= 500) return {min:401, max:500, label:"HK$401–500"};
+    return {min:501, max:Infinity, label:"HK$501以上"};
+  }
+
+  function matchesBudget(price, range) {
+    if (!range) return true;
+    const band = getPriceBand(price);
+    if (!band) return false;
+    if (range === "501+") return band.min >= 501;
+    const [min, max] = range.split("-").map(Number);
+    return band.min === min && band.max === max;
+  }
+
+  function matchesArea(area, selected) {
+    if (!selected) return true;
+    if (!area) return false;
+    if (selected === ALL_HK) {
+      return area.startsWith("香港島・") ||
+        area.startsWith("九龍・") || area.startsWith("新界・");
+    }
+    if (selected === ALL_MACAU) return area.startsWith("澳門・");
+    if (selected === ALL_ZHUHAI) return area.startsWith("珠海・");
+    return area === selected;
+  }
+
+  function getFiltered() {
+    const area = $("filterArea").value;
+    const category = $("filterCategory").value;
+    const budget = $("filterBudget").value;
+    const query = $("filterText").value.trim().toLowerCase();
+
+    return restaurants.filter(item =>
+      matchesArea(item.area, area) &&
+      (!category || item.category === category) &&
+      matchesBudget(item.price, budget) &&
+      (!query || `${item.name || ""} ${item.notes || ""} ${item.area || ""}`
+        .toLowerCase().includes(query))
+    );
+  }
+
+  function render() {
+    const filtered = getFiltered();
+    $("count").textContent = `顯示 ${filtered.length} 間／共 ${restaurants.length} 間`;
+
+    const root = $("results");
+    root.replaceChildren();
+
+    if (!filtered.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.style.gridColumn = "1/-1";
+      empty.textContent = "暫時未有符合條件嘅餐廳～試下改一改篩選，或者新增餐廳 💗";
+      root.append(empty);
+      return;
+    }
+
+    filtered.forEach(item => {
+      const card = document.createElement("article");
+      card.className = "card";
+
+      const photo = safeUrl(item.photos?.[0] || item.photoUrl || "");
+      const price = getPriceBand(item.price);
+      const link = safeUrl(item.url || "");
+
+      card.innerHTML = `
+        <div class="photo">
+          ${photo
+            ? `<img src="${escapeHTML(photo)}" alt="${escapeHTML(item.name || "")}" loading="lazy">`
+            : "🍜 等緊 BB 加相片"}
+        </div>
+        <div class="card-body">
+          <h3>${escapeHTML(item.name || "未命名餐廳")}</h3>
+          <div class="meta">
+            ${escapeHTML(item.area || "未設定地區")}<br>
+            人均：${escapeHTML(price?.label || "未設定")}
+          </div>
+          ${item.category
+            ? `<div class="tags"><span class="tag">${escapeHTML(item.category)}</span></div>`
+            : ""}
+          ${item.notes
+            ? `<div class="meta">${escapeHTML(item.notes).replace(/\n/g, "<br>")}</div>`
+            : ""}
+          <div class="card-actions">
+            ${link
+              ? `<a class="btn secondary small" href="${escapeHTML(link)}" target="_blank" rel="noopener noreferrer">餐廳連結</a>`
+              : ""}
+            <button class="btn secondary small" data-action="edit" data-id="${escapeHTML(item.id)}">編輯</button>
+            <button class="btn secondary small" data-action="delete" data-id="${escapeHTML(item.id)}">刪除</button>
+          </div>
+        </div>`;
+
+      const image = card.querySelector(".photo img");
+      if (image) image.addEventListener("error", () => {
+        image.parentElement.textContent = "🍜 相片暫時無法顯示";
+      });
+
+      root.append(card);
+    });
+  }
+
+  ["filterArea", "filterCategory", "filterBudget", "filterText"].forEach(id => {
+    $(id).addEventListener("input", render);
+    $(id).addEventListener("change", render);
+  });
+
+  function readLocalCache() {
+    try {
+      const data = JSON.parse(
+        localStorage.getItem(STORAGE_KEY) ||
+        localStorage.getItem("bb-restaurant-picker-v1") || "[]"
+      );
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function migrateLocalRestaurants(items) {
+    return items.map(raw => {
+      const item = {...raw};
+      item.area = normalizeArea(item.area);
+      item.photos = Array.isArray(item.photos)
+        ? item.photos
+            .filter(photo => typeof photo === "string" && !photo.startsWith("data:image/"))
+            .map(safeUrl)
+            .filter(Boolean)
+        : [];
+      item.id ||= crypto.randomUUID();
+      return item;
+    });
+  }
+
+  async function saveRestaurant(item) {
+    if (!currentUser) throw new Error("請先登入。");
+    const {id, ...data} = item;
+    await setDoc(doc(db, "users", currentUser.uid, "restaurants", id), data);
+  }
+
+  async function replaceCloudRestaurants(items) {
+    const snapshot = await getDocs(restaurantCollection());
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(document => batch.delete(document.ref));
+    items.forEach(({id, ...data}) => {
+      batch.set(doc(db, "users", currentUser.uid, "restaurants", id), data);
+    });
+    await batch.commit();
+  }
+
+  function authError(error) {
+    const messages = {
+      "auth/invalid-email":"Email 格式不正確。",
+      "auth/missing-password":"請輸入密碼。",
+      "auth/weak-password":"密碼至少需要 6 個字元。",
+      "auth/email-already-in-use":"這個 Email 已建立帳戶。",
+      "auth/invalid-credential":"Email 或密碼不正確。",
+      "auth/too-many-requests":"嘗試次數過多，請稍後再試。",
+      "auth/operation-not-allowed":"請先在 Firebase Console 啟用 Email/Password 登入。"
+    };
+    return messages[error.code] || `操作失敗：${error.message}`;
+  }
+
+  function setAuthMessage(message, isError = false) {
+    $("authMessage").textContent = message;
+    $("authMessage").style.color = isError ? "#b42318" : "";
+  }
+
+  $("authForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    try {
+      setAuthMessage("登入中…");
+      await signInWithEmailAndPassword(
+        auth, $("authEmail").value.trim(), $("authPassword").value
+      );
+      setAuthMessage("");
+    } catch (error) {
+      setAuthMessage(authError(error), true);
+    }
+  });
+
+  $("signupBtn").addEventListener("click", async () => {
+    try {
+      setAuthMessage("建立帳戶中…");
+      await createUserWithEmailAndPassword(
+        auth, $("authEmail").value.trim(), $("authPassword").value
+      );
+      setAuthMessage("");
+    } catch (error) {
+      setAuthMessage(authError(error), true);
+    }
+  });
+
+  $("resetPasswordBtn").addEventListener("click", async () => {
+    const email = $("authEmail").value.trim();
+    if (!email) {
+      setAuthMessage("請先輸入 Email。", true);
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setAuthMessage("已發出重設密碼電郵，請查看收件箱。");
+    } catch (error) {
+      setAuthMessage(authError(error), true);
+    }
+  });
+
+  $("logoutBtn").addEventListener("click", () => signOut(auth));
+
+  onAuthStateChanged(auth, user => {
+    currentUser = user;
+    $("loginPanel").hidden = !!user;
+    $("app").hidden = !user;
+
+    if (unsubscribeRestaurants) {
+      unsubscribeRestaurants();
+      unsubscribeRestaurants = null;
+    }
+
+    migrationChecked = false;
+    restaurants = [];
+
+    if (!user) {
+      $("userLabel").textContent = "";
+      $("syncStatus").textContent = "等待登入";
+      render();
+      return;
+    }
+
+    $("userLabel").textContent = user.email || "已登入";
+    $("syncStatus").textContent = "正在連接雲端…";
+    const local = readLocalCache();
+
+    unsubscribeRestaurants = onSnapshot(
+      restaurantCollection(),
+      async snapshot => {
+        if (!migrationChecked) {
+          migrationChecked = true;
+          if (snapshot.empty && local.length &&
+              confirm(`找到本機舊資料 ${local.length} 間。要匯入到這個帳戶並開始同步嗎？`)) {
+            try {
+              const migrated = migrateLocalRestaurants(local);
+              await replaceCloudRestaurants(migrated);
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem("bb-restaurant-picker-v1");
+              $("syncStatus").textContent = "舊資料已匯入雲端";
+            } catch (error) {
+              $("syncStatus").textContent = `遷移失敗：${error.message}`;
+            }
+            return;
+          }
+        }
+
+        restaurants = snapshot.docs.map(document => ({
+          id: document.id,
+          ...document.data()
+        }));
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(restaurants));
+        $("syncStatus").textContent = "☁️ 已同步";
+        render();
+      },
+      error => {
+        $("syncStatus").textContent = `同步失敗：${error.message}`;
+        alert("無法讀取雲端資料。請檢查 Firebase 設定及 Firestore 安全規則。");
+      }
+    );
+  });
+
+  $("restaurantForm").addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const button = $("saveBtn");
+    button.disabled = true;
+    button.textContent = "儲存中…";
+
+    try {
+      const id = $("editId").value || crypto.randomUUID();
+      const old = restaurants.find(item => item.id === id);
+      const item = {
+        id,
+        name: $("name").value.trim(),
+        area: $("area").value,
+        price: $("price").value,
+        category: $("category").value,
+        url: safeUrl($("url").value.trim()),
+        photoUrl: safeUrl($("photoUrl").value.trim()),
+        photos: old?.photos || [],
+        notes: $("notes").value.trim(),
+        updatedAt: Date.now()
+      };
+
+      if (!item.name || !item.area || !item.price) {
+        throw new Error("請填寫餐廳名稱、地區同人均消費。");
+      }
+
+      await saveRestaurant(item);
+      resetForm();
+      $("syncStatus").textContent = "已儲存，正在同步…";
+    } catch (error) {
+      alert(`儲存失敗：${error.message}`);
+    } finally {
+      button.disabled = false;
+      button.textContent = "儲存餐廳";
+    }
+  });
+
+  function resetForm() {
+    $("restaurantForm").reset();
+    $("editId").value = "";
+    $("formTitle").textContent = "➕ 加入餐廳";
+    $("cancelEdit").hidden = true;
+  }
+
+  $("cancelEdit").addEventListener("click", resetForm);
+
+  $("results").addEventListener("click", async event => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    const item = restaurants.find(entry => entry.id === button.dataset.id);
+    if (!item) return;
+
+    if (button.dataset.action === "delete" &&
+        confirm(`確定刪除「${item.name}」？`)) {
+      try {
+        await deleteDoc(doc(db, "users", currentUser.uid, "restaurants", item.id));
+        $("syncStatus").textContent = "已刪除，正在同步…";
+      } catch (error) {
+        alert(`刪除失敗：${error.message}`);
+      }
+    }
+
+    if (button.dataset.action === "edit") {
+      $("editId").value = item.id;
+      $("name").value = item.name || "";
+      $("area").value = normalizeArea(item.area);
+      $("price").value = item.price == null ? "" : String(item.price);
+      $("category").value = item.category || "";
+      $("url").value = item.url || "";
+      $("photoUrl").value = item.photoUrl || "";
+      $("notes").value = item.notes || "";
+      $("formTitle").textContent = "✏️ 編輯餐廳";
+      $("cancelEdit").hidden = false;
+      window.scrollTo({top:0, behavior:"smooth"});
+    }
+  });
+
+  $("pickBtn").addEventListener("click", () => {
+    const list = getFiltered();
+    const box = $("randomBox");
+
+    if (!list.length) {
+      box.textContent = "而家冇符合條件嘅餐廳可以揀，試下清除部分篩選先～";
+    } else {
+      const chosen = list[Math.floor(Math.random() * list.length)];
+      box.innerHTML = `🎉 今日不如食：<strong>${escapeHTML(chosen.name)}</strong>！`;
+    }
+    box.classList.add("show");
+  });
+
+  $("searchBtn").addEventListener("click", () => {
+    const name = $("name").value.trim();
+    if (!name) {
+      alert("先輸入餐廳名稱，就可以開啟搜尋結果。");
+      $("name").focus();
+      return;
+    }
+    window.open(
+      `https://www.google.com/search?q=${encodeURIComponent(name + " 餐牌 相片 地址")}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  });
+
+  $("exportBtn").addEventListener("click", () => {
+    const blob = new Blob(
+      [JSON.stringify(restaurants, null, 2)],
+      {type:"application/json"}
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "bb-restaurant-backup.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+
+  $("importFile").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const data = JSON.parse(await file.text());
+      if (!Array.isArray(data)) throw new Error("JSON 格式不正確。");
+
+      const cleaned = data
+        .filter(item => item && item.name && item.area)
+        .map(item => ({
+          id: item.id || crypto.randomUUID(),
+          name: String(item.name),
+          area: normalizeArea(item.area),
+          price: item.price ?? "",
+          category: item.category || "",
+          url: safeUrl(item.url || ""),
+          photoUrl: safeUrl(item.photoUrl || ""),
+          photos: Array.isArray(item.photos)
+            ? item.photos
+                .filter(photo => typeof photo === "string" && !photo.startsWith("data:image/"))
+                .map(safeUrl)
+                .filter(Boolean)
+            : [],
+          notes: String(item.notes || ""),
+          updatedAt: Date.now()
+        }));
+
+      if (!confirm(`匯入 ${cleaned.length} 間餐廳？這會取代此帳戶目前的雲端清單。`)) {
+        return;
+      }
+
+      await replaceCloudRestaurants(cleaned);
+      $("syncStatus").textContent = "備份已匯入，正在同步…";
+    } catch (error) {
+      alert(`匯入失敗：${error.message}`);
+    } finally {
+      event.target.value = "";
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
